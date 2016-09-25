@@ -1,0 +1,67 @@
+---
+title: "Reproducible Research Final Assignment"
+author: "Gavin Kim"
+date: "2016-09-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.path = "figure/")
+
+# Set locale for datetime funtions
+Sys.setlocale("LC_TIME", "English")
+```
+
+## Title
+
+## SYNOPSIS
+
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern. This analysis reports what type of event is most harmful to population health and has the greatest economic consequences with the U.S. National Oceanic and Atmospheric Administration’s (NOAA) storm database. The intent of this analysis is to determine which weather event types are most harmful to population health, and which types of events have the greatest economic impact.
+
+## Data Processing
+
+You can find this data file on Coursera "Reproducible Research" web site. ([Storm
+Data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2) [47Mb])
+
+And here is the links where you can find how some variables are constructed/defined.
+
+* National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+* National Climatic Data Center Storm Events [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
+
+```{r downData}
+# Download data from web
+NOAA_DATA_PATH <- "./StormData.csv.bz2"
+if(!file.exists(NOAA_DATA_PATH)) {
+  download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2", 
+                destfile = NOAA_DATA_PATH)
+}
+```
+
+### Loading data
+
+Load the data from local bz2 compressed file named "StormData.csv.bz2"
+
+```{r loadData}
+cache = TRUE
+NOAA_STORM <- read.csv(file =  bzfile(NOAA_DATA_PATH), quote = "\"", header = TRUE, sep = ",")
+```
+
+### Data Variables
+
+```{r checkData}
+names(NOAA_STORM)
+```
+There is many variables in data. In this analysis, we use "EVTYPE", "FATALITIES", "INJURIES", "PROPDMG", "PROPDMGEXP", "CROPDMG", "CROPDMGEXP" columns for getting relation of weather event type and fatalities, injuries / economic damages.
+
+### Preprocessing
+
+We can narrow down this data size by filtering where fatalities, injuries, property or crop damage is 0.
+
+```{r preprocessing}
+FILTERED_DATA <- subset(NOAA_STORM, FATALITIES > 0 | INJURIES > 0 | PROPDMG > 0 | CROPDMG > 0, select = c(8, 23:28))
+
+str(NOAA_STORM)
+levels(NOAA_STORM$INJURIES)
+```
+
