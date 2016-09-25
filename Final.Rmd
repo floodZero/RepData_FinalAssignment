@@ -1,5 +1,5 @@
 ---
-title: "Reproducible Research Final Assignment"
+title: "Impacts to health and economic of Weather event from 1950 to 2011"
 author: "Gavin Kim"
 date: "2016-09-25"
 output: html_document
@@ -13,11 +13,9 @@ knitr::opts_chunk$set(fig.path = "figure/")
 Sys.setlocale("LC_TIME", "English")
 ```
 
-## Title
-
 ## SYNOPSIS
 
-Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern. This analysis reports what type of event is most harmful to population health and has the greatest economic consequences with the U.S. National Oceanic and Atmospheric Administration’s (NOAA) storm database. The intent of this analysis is to determine which weather event types are most harmful to population health, and which types of events have the greatest economic impact.
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern. This analysis reports what type of event is most harmful to population health and has the greatest economic consequences with the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database (1950-2011). The intent of this analysis is to determine which weather event types are most harmful to population health, and which types of events have the greatest economic impact.
 
 ## Data Processing
 
@@ -43,8 +41,9 @@ if(!file.exists(NOAA_DATA_PATH)) {
 Load the data from local bz2 compressed file named "StormData.csv.bz2"
 
 ```{r loadData}
+library("data.table")
 cache = TRUE
-NOAA_STORM <- read.csv(file =  bzfile(NOAA_DATA_PATH), quote = "\"", header = TRUE, sep = ",")
+NOAA_STORM <- data.table(read.csv(file =  bzfile(NOAA_DATA_PATH), quote = "\"", header = TRUE, sep = ","))
 ```
 
 ### Data Variables
@@ -58,10 +57,81 @@ There is many variables in data. In this analysis, we use "EVTYPE", "FATALITIES"
 
 We can narrow down this data size by filtering where fatalities, injuries, property or crop damage is 0.
 
-```{r preprocessing}
-FILTERED_DATA <- subset(NOAA_STORM, FATALITIES > 0 | INJURIES > 0 | PROPDMG > 0 | CROPDMG > 0, select = c(8, 23:28))
+```{r filtering}
+FILTERED_DATA <- NOAA_STORM[FATALITIES > 0 | INJURIES > 0 | PROPDMG > 0 | CROPDMG > 0]
 
-str(NOAA_STORM)
-levels(NOAA_STORM$INJURIES)
+# check exponents of damage variable
+levels(FILTERED_DATA$PROPDMGEXP)
+levels(FILTERED_DATA$CROPDMGEXP)
 ```
+
+As you see, the variable of exponents has some unclear string and different types mixed.
+So adjust and clearing is needed for this data.
+The variable PROPDMGCOST and CROPDMGCOST will have value of damage code what exponent caculated.
+
+```{r preprocessing}
+calcExp <- function(coef, exp) {
+  if (exp %in% c("+", "-", "?")) {
+    # These case can't validate what exact meaning of data. I decide to ignore this.
+    return(0)
+  } else if (exp == "") {
+    conv_exp <- 0
+  } else if (exp %in% c("K", "k")) {
+    conv_exp <- 3
+  } else if (exp %in% c("M", "m")) {
+    conv_exp <- 6
+  } else if (exp %in% c("B", "b")) {
+    conv_exp <- 9
+  } else if (exp %in% c("0", "1", "2", "3", "4", "5", "6", "7", "8", "9")) {
+    conv_exp <- strtoi(exp)
+  } else {
+    return(0)
+  }
+  
+  coef * (10 ^ conv_exp)
+}
+
+FILTERED_DATA[, PROPDMGCOST:=mapply(PROPDMG, PROPDMGEXP, SIMPLIFY = TRUE, FUN = calcExp)]
+FILTERED_DATA[, CROPDMGCOST:=mapply(CROPDMG, CROPDMGEXP, SIMPLIFY = TRUE, FUN = calcExp)]
+```
+
+## Results
+
+### Q1. Across the United States, which types of events are most harmful with respect to population health?
+
+```{r result1}
+library(ggplot2)
+library(reshape2)
+# Make summation of fatalities and injuries by event type
+PLOT_DATA <- FILTERED_DATA[, lapply(.SD,sum), by = EVTYPE, .SDcols=c('FATALITIES', 'INJURIES')]
+PLOT_DATA <- melt(PLOT_DATA[head(order(-(FATALITIES + INJURIES)), 10)], id.vars = "EVTYPE", measure.vars= c("FATALITIES", "INJURIES"))
+
+ggplot(data = PLOT_DATA, aes(y = value, x = EVTYPE, fill = variable)) +
+  geom_bar(stat = "identity") + 
+  scale_fill_brewer(palette = "Set1") +
+  coord_flip() +
+  xlab("Events") + 
+  ylab("Sum of Fatalities and Injuries") + 
+  ggtitle("Fatalities and Injuries caused by Events")
+```
+
+According to this figure, 'TORNADO' is the most harmful event to fatalities and injuries.
+
+
+### Q2. Across the United States, which types of events have the greatest economic consequences?
+
+```{r result2}
+PLOT_DATA2 <- FILTERED_DATA[, lapply(.SD,sum), by = EVTYPE, .SDcols=c('PROPDMGCOST', 'CROPDMGCOST')]
+PLOT_DATA2 <- melt(PLOT_DATA2[head(order(-(PROPDMGCOST + CROPDMGCOST)), 10)], id.vars = "EVTYPE", measure.vars= c("PROPDMGCOST", "CROPDMGCOST"))
+
+ggplot(data = PLOT_DATA2, aes(y = value, x = EVTYPE, fill = variable)) +
+  geom_bar(stat = "identity") + 
+  scale_fill_brewer(palette = "Set2") +
+  coord_flip() +
+  xlab("Events") + 
+  ylab("Damage cost of Property and Crop") + 
+  ggtitle("Damage cost of Property and Crop caused by Events")
+```
+
+According to figure above, 'FLOOD' is the event what occured highest expense to property and crop.
 
